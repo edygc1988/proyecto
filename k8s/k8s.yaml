@@ -1,4 +1,15 @@
 ---
+# imagePullSecret para acceder a Docker Hub
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dockerhub-secret
+  namespace: microservices
+type: kubernetes.io/dockercfg
+data:
+  .dockercfg: eyJkb2NrZXIuaW8iOnsidXNlcm5hbWUiOiJlZHlnYzE5ODgiLCJwYXNzd29yZCI6IiIsImVtYWlsIjoiIn19
+
+---
 # Namespace para la aplicación
 apiVersion: v1
 kind: Namespace
@@ -204,7 +215,7 @@ spec:
     spec:
       containers:
         - name: microservice-1
-          image: your-repo/microservice-1:latest
+          image: edygc1988/microservice-1:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5000
@@ -320,7 +331,7 @@ spec:
     spec:
       containers:
         - name: microservice-2
-          image: your-repo/microservice-2:latest
+          image: edygc1988/microservice-2:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5001
