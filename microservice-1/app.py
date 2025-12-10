@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
+# Flag para controlar la inicialización de la DB
+_db_initialized = False
+
 # Configuración de base de datos desde variables de entorno
 DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_PORT = os.getenv('DB_PORT', '5432')
@@ -75,7 +78,13 @@ def init_db(max_retries=10, retry_delay=2):
 @app.before_request
 def before_request():
     """Hook que se ejecuta antes de cada request"""
-    pass
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            init_db()
+            _db_initialized = True
+        except Exception as e:
+            logger.error(f"Error inicializando DB en before_request: {e}")
 
 @app.route('/health', methods=['GET'])
 def health_check():
