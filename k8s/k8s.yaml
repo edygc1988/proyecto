@@ -1,0 +1,543 @@
+---
+# Namespace para la aplicación
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: microservices
+  labels:
+    name: microservices
+
+---
+# ConfigMap para variables de entorno compartidas
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: microservices-config
+  namespace: microservices
+data:
+  FLASK_ENV: "production"
+  PORT_MS1: "5000"
+  PORT_MS2: "5001"
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_NAME: "microservices_db"
+  DB_USER: "postgres"
+  # Nota: La contraseña se debe pasar como Secret, no ConfigMap
+
+---
+# Secret para credenciales sensibles
+apiVersion: v1
+kind: Secret
+metadata:
+  name: microservices-secrets
+  namespace: microservices
+type: Opaque
+stringData:
+  DB_PASSWORD: "postgres"
+
+---
+# PersistentVolume para PostgreSQL
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-pv
+  namespace: microservices
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  hostPath:
+    path: /mnt/data/postgres
+
+---
+# PersistentVolumeClaim para PostgreSQL
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: microservices
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# Servicio de PostgreSQL
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: microservices
+  labels:
+    app: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+  type: ClusterIP
+
+---
+# StatefulSet de PostgreSQL
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: microservices
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: DB_NAME
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: microservices-secrets
+                  key: DB_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U postgres
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U postgres
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+
+---
+# Servicio para Microservicio 1
+apiVersion: v1
+kind: Service
+metadata:
+  name: microservice-1
+  namespace: microservices
+  labels:
+    app: microservice-1
+spec:
+  selector:
+    app: microservice-1
+  ports:
+    - port: 5000
+      targetPort: 5000
+      protocol: TCP
+      name: http
+  type: ClusterIP
+
+---
+# Deployment de Microservicio 1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: microservice-1
+  namespace: microservices
+  labels:
+    app: microservice-1
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: microservice-1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: microservice-1
+        version: v1
+    spec:
+      containers:
+        - name: microservice-1
+          image: your-repo/microservice-1:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+              name: http
+          env:
+            - name: FLASK_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: FLASK_ENV
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: PORT_MS1
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: microservices-secrets
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 15"]
+
+---
+# Servicio para Microservicio 2
+apiVersion: v1
+kind: Service
+metadata:
+  name: microservice-2
+  namespace: microservices
+  labels:
+    app: microservice-2
+spec:
+  selector:
+    app: microservice-2
+  ports:
+    - port: 5001
+      targetPort: 5001
+      protocol: TCP
+      name: http
+  type: ClusterIP
+
+---
+# Deployment de Microservicio 2
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: microservice-2
+  namespace: microservices
+  labels:
+    app: microservice-2
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: microservice-2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: microservice-2
+        version: v1
+    spec:
+      containers:
+        - name: microservice-2
+          image: your-repo/microservice-2:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5001
+              name: http
+          env:
+            - name: FLASK_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: FLASK_ENV
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: PORT_MS2
+            - name: MICROSERVICE_1_HOST
+              value: microservice-1
+            - name: MICROSERVICE_1_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: microservices-config
+                  key: PORT_MS1
+            - name: MICROSERVICE_1_URL
+              value: "http://microservice-1:5000"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 15"]
+
+---
+# NetworkPolicy para asegurar la comunicación entre servicios
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: microservices-network-policy
+  namespace: microservices
+spec:
+  podSelector:
+    matchLabels:
+      app: microservice-1
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: microservice-2
+        - namespaceSelector:
+            matchLabels:
+              name: microservices
+      ports:
+        - protocol: TCP
+          port: 5000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+
+---
+# NetworkPolicy para Microservicio 2
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: microservice-2-network-policy
+  namespace: microservices
+spec:
+  podSelector:
+    matchLabels:
+      app: microservice-2
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: microservices
+      ports:
+        - protocol: TCP
+          port: 5001
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: microservice-1
+      ports:
+        - protocol: TCP
+          port: 5000
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+
+---
+# NetworkPolicy para PostgreSQL
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-network-policy
+  namespace: microservices
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: microservice-1
+        - podSelector:
+            matchLabels:
+              app: microservice-2
+      ports:
+        - protocol: TCP
+          port: 5432
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+
+---
+# HorizontalPodAutoscaler para Microservicio 1
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: microservice-1-hpa
+  namespace: microservices
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: microservice-1
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# HorizontalPodAutoscaler para Microservicio 2
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: microservice-2-hpa
+  namespace: microservices
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: microservice-2
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

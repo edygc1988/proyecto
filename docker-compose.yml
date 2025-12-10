@@ -1,0 +1,106 @@
+version: '3.8'
+
+# Docker Compose para desarrollo local
+# Uso: docker-compose up -d
+
+services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: microservices-postgres
+    environment:
+      POSTGRES_DB: microservices_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Microservicio 1 - CRUD de Items
+  microservice-1:
+    build:
+      context: ./microservice-1
+      dockerfile: Dockerfile
+    container_name: microservices-ms1
+    ports:
+      - "5000:5000"
+    environment:
+      FLASK_ENV: development
+      PORT: 5000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./microservice-1:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - microservices-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Microservicio 2 - Consumidor
+  microservice-2:
+    build:
+      context: ./microservice-2
+      dockerfile: Dockerfile
+    container_name: microservices-ms2
+    ports:
+      - "5001:5001"
+    environment:
+      FLASK_ENV: development
+      PORT: 5001
+      MICROSERVICE_1_HOST: microservice-1
+      MICROSERVICE_1_PORT: 5000
+      MICROSERVICE_1_URL: http://microservice-1:5000
+    depends_on:
+      microservice-1:
+        condition: service_healthy
+    volumes:
+      - ./microservice-2:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - microservices-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  microservices-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

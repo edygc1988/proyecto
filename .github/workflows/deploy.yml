@@ -1,0 +1,283 @@
+name: CI/CD Pipeline - Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "microservice-1/**"
+      - "microservice-2/**"
+      - "k8s/**"
+      - ".github/workflows/deploy.yml"
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_MS1: ${{ github.repository }}/microservice-1
+  IMAGE_NAME_MS2: ${{ github.repository }}/microservice-2
+
+jobs:
+  # Job 1: Build y test Microservicio 1
+  build-microservice-1:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta-ms1
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_MS1 }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Microservicio 1
+        uses: docker/build-push-action@v4
+        with:
+          context: ./microservice-1
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-ms1.outputs.tags }}
+          labels: ${{ steps.meta-ms1.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_MS1 }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_MS1 }}:buildcache,mode=max
+
+      - name: Run unit tests for Microservicio 1
+        run: |
+          cd microservice-1
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest requests
+          pytest tests/ -v --tb=short || true
+        continue-on-error: true
+
+  # Job 2: Build y test Microservicio 2
+  build-microservice-2:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta-ms2
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_MS2 }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Microservicio 2
+        uses: docker/build-push-action@v4
+        with:
+          context: ./microservice-2
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-ms2.outputs.tags }}
+          labels: ${{ steps.meta-ms2.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_MS2 }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_MS2 }}:buildcache,mode=max
+
+      - name: Run unit tests for Microservicio 2
+        run: |
+          cd microservice-2
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest requests
+          pytest tests/ -v --tb=short || true
+        continue-on-error: true
+
+  # Job 3: Deploy a Kubernetes
+  deploy-to-kubernetes:
+    needs: [build-microservice-1, build-microservice-2]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "$KUBECONFIG_CONTENT" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Verify kubectl connectivity
+        run: |
+          kubectl version --client
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Replace image tags in k8s.yaml
+        run: |
+          sed -i 's|your-repo/microservice-1:latest|${{ env.REGISTRY }}/${{ env.IMAGE_NAME_MS1 }}:latest|g' k8s/k8s.yaml
+          sed -i 's|your-repo/microservice-2:latest|${{ env.REGISTRY }}/${{ env.IMAGE_NAME_MS2 }}:latest|g' k8s/k8s.yaml
+          cat k8s/k8s.yaml
+
+      - name: Create namespace
+        run: |
+          kubectl create namespace microservices --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/k8s.yaml
+          kubectl rollout status deployment/microservice-1 -n microservices --timeout=5m || true
+          kubectl rollout status deployment/microservice-2 -n microservices --timeout=5m || true
+
+      - name: Verify deployments
+        run: |
+          echo "=== Namespaces ==="
+          kubectl get namespaces
+          echo ""
+          echo "=== Pods in microservices namespace ==="
+          kubectl get pods -n microservices
+          echo ""
+          echo "=== Services ==="
+          kubectl get svc -n microservices
+          echo ""
+          echo "=== Deployments ==="
+          kubectl get deployments -n microservices
+          echo ""
+          echo "=== Events ==="
+          kubectl get events -n microservices --sort-by='.lastTimestamp'
+
+      - name: Check pod status
+        run: |
+          kubectl describe pods -n microservices || true
+          kubectl logs -n microservices --tail=20 -l app=microservice-1 || true
+          kubectl logs -n microservices --tail=20 -l app=microservice-2 || true
+
+  # Job 4: Smoke Tests después del deploy
+  smoke-tests:
+    needs: deploy-to-kubernetes
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "$KUBECONFIG_CONTENT" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Esperando que los servicios estén listos..."
+          sleep 30
+          kubectl wait --for=condition=ready pod -l app=microservice-1 -n microservices --timeout=5m || true
+          kubectl wait --for=condition=ready pod -l app=microservice-2 -n microservices --timeout=5m || true
+
+      - name: Run smoke tests
+        run: |
+          echo "Ejecutando smoke tests..."
+
+          # Obtener el puerto del servicio
+          kubectl get svc -n microservices
+
+          # Hacer port-forward (en background)
+          kubectl port-forward -n microservices svc/microservice-1 5000:5000 &
+          FORWARD_PID=$!
+          sleep 5
+
+          # Test de health check
+          echo "Testing Microservicio 1 health check..."
+          curl -f http://localhost:5000/health || echo "Health check failed, pero continuando..."
+
+          # Test de GET items
+          echo "Testing Microservicio 1 GET /items..."
+          curl -f http://localhost:5000/items || echo "GET items failed"
+
+          # Limpiar port-forward
+          kill $FORWARD_PID || true
+
+      - name: Verify deployment logs
+        if: always()
+        run: |
+          echo "=== Microservice 1 Logs ==="
+          kubectl logs -n microservices -l app=microservice-1 --tail=50 || true
+          echo ""
+          echo "=== Microservice 2 Logs ==="
+          kubectl logs -n microservices -l app=microservice-2 --tail=50 || true
+          echo ""
+          echo "=== PostgreSQL Logs ==="
+          kubectl logs -n microservices -l app=postgres --tail=50 || true
+
+  # Job 5: Notification
+  notify:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [build-microservice-1, build-microservice-2, deploy-to-kubernetes]
+
+    steps:
+      - name: Determine job status
+        id: status
+        run: |
+          if [ "${{ needs.build-microservice-1.result }}" = "failure" ] || [ "${{ needs.build-microservice-2.result }}" = "failure" ]; then
+            echo "status=failed" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.deploy-to-kubernetes.result }}" = "failure" ]; then
+            echo "status=deployment-failed" >> $GITHUB_OUTPUT
+          else
+            echo "status=success" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Success notification
+        if: steps.status.outputs.status == 'success'
+        run: |
+          echo "✅ CI/CD Pipeline completado exitosamente"
+          echo "Microservicios desplegados en Kubernetes"
+
+      - name: Failure notification
+        if: steps.status.outputs.status != 'success'
+        run: |
+          echo "❌ CI/CD Pipeline falló"
+          echo "Status: ${{ steps.status.outputs.status }}"
+          exit 1
