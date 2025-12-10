@@ -1,16 +1,5 @@
 ---
-# imagePullSecret para acceder a Docker Hub
-apiVersion: v1
-kind: Secret
-metadata:
-  name: dockerhub-secret
-  namespace: microservices
-type: kubernetes.io/dockercfg
-data:
-  .dockercfg: eyJkb2NrZXIuaW8iOnsidXNlcm5hbWUiOiJlZHlnYzE5ODgiLCJwYXNzd29yZCI6IiIsImVtYWlsIjoiIn19
-
----
-# Namespace para la aplicación
+# PRIMERO: Namespace para la aplicación
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -45,6 +34,17 @@ metadata:
 type: Opaque
 stringData:
   DB_PASSWORD: "postgres"
+
+---
+# imagePullSecret para acceder a Docker Hub (opcional)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dockerhub-secret
+  namespace: microservices
+type: kubernetes.io/dockercfg
+data:
+  .dockercfg: eyJkb2NrZXIuaW8iOnsidXNlcm5hbWUiOiJlZHlnYzE5ODgiLCJwYXNzd29yZCI6IiIsImVtYWlsIjoiIn19
 
 ---
 # PersistentVolume para PostgreSQL
