@@ -1,0 +1,13 @@
+apiVersion: v2
+name: microservices
+version: 1.0.0
+appVersion: "1.0.0"
+description: Helm chart para microservicios Flask con PostgreSQL
+type: application
+maintainers:
+  - name: edygc1988
+keywords:
+  - microservices
+  - flask
+  - postgresql
+  - kubernetes

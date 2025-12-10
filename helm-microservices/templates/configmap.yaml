@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: microservices-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  FLASK_ENV: {{ .Values.flask.env | quote }}
+  DB_HOST: {{ .Values.postgres.name | quote }}
+  DB_PORT: {{ .Values.postgres.service.port | quote }}
+  DB_NAME: {{ .Values.postgres.credentials.database | quote }}
+  DB_USER: {{ .Values.postgres.credentials.user | quote }}

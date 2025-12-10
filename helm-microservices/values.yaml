@@ -1,0 +1,59 @@
+# Configuración global
+namespace: microservices
+
+# Microservicio 1
+microservice1:
+  name: microservice-1
+  replicas: 2
+  image:
+    repository: edygc1988/microservice-1
+    tag: latest
+    pullPolicy: Always
+  service:
+    port: 5000
+    targetPort: 5000
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# Microservicio 2
+microservice2:
+  name: microservice-2
+  replicas: 2
+  image:
+    repository: edygc1988/microservice-2
+    tag: latest
+    pullPolicy: Always
+  service:
+    port: 5001
+    targetPort: 5001
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# PostgreSQL
+postgres:
+  name: postgres
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  service:
+    port: 5432
+  storage:
+    size: 1Gi
+  credentials:
+    database: microservices_db
+    user: postgres
+    password: postgres
+
+# Configuración Flask
+flask:
+  env: production
