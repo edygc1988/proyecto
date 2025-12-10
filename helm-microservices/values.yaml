@@ -1,5 +1,6 @@
 # Configuración global
-namespace: microservices
+namespace: default
+createNamespace: false  # Cambiar a true si tienes permisos para crear namespaces
 
 # Microservicio 1
 microservice1:
