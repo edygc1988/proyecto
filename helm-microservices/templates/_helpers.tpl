@@ -6,6 +6,17 @@ Nombre completo del chart
 {{- end }}
 
 {{/*
+Namespace - usa el namespace especificado o el del Release
+*/}}
+{{- define "microservices.namespace" -}}
+{{- if .Values.namespace }}
+{{- .Values.namespace }}
+{{- else }}
+{{- .Release.Namespace }}
+{{- end }}
+{{- end }}
+
+{{/*
 Labels comunes
 */}}
 {{- define "microservices.labels" -}}

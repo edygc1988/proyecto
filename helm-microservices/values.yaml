@@ -1,6 +1,16 @@
 # Configuración global
-namespace: default
-createNamespace: false  # Cambiar a true si tienes permisos para crear namespaces
+# Dejar vacío para usar el proyecto actual de OpenShift
+namespace: ""
+createNamespace: false
+
+# OpenShift específico
+openshift:
+  enabled: true
+  # Crear Routes para exponer los servicios
+  routes:
+    enabled: true
+    # Dominio base para las rutas (OpenShift lo asigna automáticamente si está vacío)
+    domain: ""
 
 # Microservicio 1
 microservice1:
@@ -50,6 +60,8 @@ postgres:
     port: 5432
   storage:
     size: 1Gi
+    # StorageClass para OpenShift (dejar vacío para usar el default)
+    storageClass: ""
   credentials:
     database: microservices_db
     user: postgres

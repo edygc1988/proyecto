@@ -1,4 +1,4 @@
-{{- if .Values.createNamespace }}
+{{- if and .Values.createNamespace .Values.namespace }}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -7,3 +7,4 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 {{- end }}
+# Nota: En OpenShift, usar 'oc new-project <nombre>' para crear proyectos
