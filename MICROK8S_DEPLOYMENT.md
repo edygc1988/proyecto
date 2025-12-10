@@ -94,24 +94,24 @@ microk8s enable dashboard
 microk8s status
 ```
 
-### Paso 2: Configurar kubectl
+### Paso 2: Configurar microk8s kubectl
 
 ```bash
-# Crear alias para no escribir "microk8s kubectl" cada vez
-alias kubectl='microk8s kubectl'
+# Crear alias para no escribir "microk8s microk8s kubectl" cada vez
+alias microk8s kubectl='microk8s microk8s kubectl'
 
 # O agregar a tu ~/.zshrc o ~/.bash_profile
-echo "alias kubectl='microk8s kubectl'" >> ~/.zshrc
+echo "alias microk8s kubectl='microk8s microk8s kubectl'" >> ~/.zshrc
 source ~/.zshrc
 
 # Verificar que funciona
-kubectl version
+microk8s kubectl version
 
 # Ver nodos
-kubectl get nodes
+microk8s kubectl get nodes
 
 # Ver estado del cluster
-kubectl cluster-info
+microk8s kubectl cluster-info
 ```
 
 ### Paso 3: Configurar Docker (Opcional pero Recomendado)
@@ -137,14 +137,14 @@ Las imágenes ya están en Docker Hub: `edygc1988/microservice-1` y `edygc1988/m
 
 ```bash
 # 1. Verificar conexión
-kubectl cluster-info
+microk8s kubectl cluster-info
 
 # 2. Desplegar todo
-kubectl apply -f k8s/k8s.yaml
+microk8s kubectl apply -f k8s/k8s.yaml
 
 # 3. Verificar que se creó
-kubectl get pods -n microservices
-kubectl get svc -n microservices
+microk8s kubectl get pods -n microservices
+microk8s kubectl get svc -n microservices
 ```
 
 ### Opción 2: Despliegue desde Imágenes Locales
@@ -164,7 +164,7 @@ microk8s ctr image import <(docker save edygc1988/microservice-2:latest)
 sed -i 's/imagePullPolicy: Always/imagePullPolicy: Never/g' k8s/k8s.yaml
 
 # 4. Desplegar
-kubectl apply -f k8s/k8s.yaml
+microk8s kubectl apply -f k8s/k8s.yaml
 
 # 5. Restaurar k8s.yaml
 sed -i 's/imagePullPolicy: Never/imagePullPolicy: Always/g' k8s/k8s.yaml
@@ -174,22 +174,22 @@ sed -i 's/imagePullPolicy: Never/imagePullPolicy: Always/g' k8s/k8s.yaml
 
 ```bash
 # Ver estado de los pods
-kubectl get pods -n microservices
+microk8s kubectl get pods -n microservices
 
 # Ver servicios
-kubectl get svc -n microservices
+microk8s kubectl get svc -n microservices
 
 # Ver deployments
-kubectl get deployments -n microservices
+microk8s kubectl get deployments -n microservices
 
 # Ver eventos (útil para debugging)
-kubectl get events -n microservices --sort-by='.lastTimestamp'
+microk8s kubectl get events -n microservices --sort-by='.lastTimestamp'
 
 # Ver logs de un servicio
-kubectl logs -n microservices -l app=microservice-1
+microk8s kubectl logs -n microservices -l app=microservice-1
 
 # Ver recursos utilizados
-kubectl top pods -n microservices
+microk8s kubectl top pods -n microservices
 ```
 
 ## 🔌 Acceder a los Servicios
@@ -198,13 +198,13 @@ kubectl top pods -n microservices
 
 ```bash
 # Terminal 1: Microservicio 1
-kubectl port-forward -n microservices svc/microservice-1 5000:5000
+microk8s kubectl port-forward -n microservices svc/microservice-1 5000:5000
 
 # Terminal 2: Microservicio 2
-kubectl port-forward -n microservices svc/microservice-2 5001:5001
+microk8s kubectl port-forward -n microservices svc/microservice-2 5001:5001
 
 # Terminal 3: PostgreSQL
-kubectl port-forward -n microservices svc/postgres 5432:5432
+microk8s kubectl port-forward -n microservices svc/postgres 5432:5432
 ```
 
 Ahora accede desde tu máquina:
@@ -222,13 +222,13 @@ Modificar el k8s.yaml para cambiar Service type a NodePort:
 sed -i 's/type: ClusterIP/type: NodePort/g' k8s/k8s.yaml
 
 # Aplicar
-kubectl apply -f k8s/k8s.yaml
+microk8s kubectl apply -f k8s/k8s.yaml
 
 # Ver puertos asignados
-kubectl get svc -n microservices
+microk8s kubectl get svc -n microservices
 
 # Obtener IP de MicroK8s
-microk8s kubectl get nodes -o wide
+microk8s microk8s kubectl get nodes -o wide
 
 # Acceder
 curl http://<MICROK8S_IP>:<NODE_PORT>/health
@@ -242,7 +242,7 @@ microk8s status | grep ingress
 
 # Crear un Ingress resource (opcional)
 # Ver INGRESS.yaml en este repositorio
-kubectl apply -f ingress.yaml
+microk8s kubectl apply -f ingress.yaml
 
 # Acceder
 curl http://localhost/health
@@ -278,7 +278,7 @@ curl http://localhost:5001/items
 microk8s dashboard-proxy
 
 # O manualmente
-kubectl proxy --port=8001
+microk8s kubectl proxy --port=8001
 
 # Acceder a: http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
 ```
@@ -287,26 +287,26 @@ kubectl proxy --port=8001
 
 ```bash
 # Todos los pods del namespace
-kubectl logs -f -n microservices --all-containers=true
+microk8s kubectl logs -f -n microservices --all-containers=true
 
 # Pod específico
-kubectl logs -f -n microservices POD_NAME
+microk8s kubectl logs -f -n microservices POD_NAME
 
 # Todos con label específico
-kubectl logs -f -n microservices -l app=microservice-1 --tail=50
+microk8s kubectl logs -f -n microservices -l app=microservice-1 --tail=50
 ```
 
 ### Monitoreo de recursos
 
 ```bash
 # Ver uso de CPU y memoria
-kubectl top pods -n microservices
+microk8s kubectl top pods -n microservices
 
 # Ver uso de nodos
-kubectl top nodes
+microk8s kubectl top nodes
 
 # En tiempo real (con watch)
-watch kubectl top pods -n microservices
+watch microk8s kubectl top pods -n microservices
 ```
 
 ## 🔄 Actualizar Despliegue
@@ -322,15 +322,15 @@ docker login
 docker push edygc1988/microservice-1:latest
 
 # 3. Actualizar en Kubernetes
-kubectl set image deployment/microservice-1 \
+microk8s kubectl set image deployment/microservice-1 \
   microservice-1=edygc1988/microservice-1:latest \
   -n microservices
 
 # 4. Ver rollout
-kubectl rollout status deployment/microservice-1 -n microservices
+microk8s kubectl rollout status deployment/microservice-1 -n microservices
 
 # 5. Si algo va mal, revertir
-kubectl rollout undo deployment/microservice-1 -n microservices
+microk8s kubectl rollout undo deployment/microservice-1 -n microservices
 ```
 
 ## 🐛 Troubleshooting
@@ -339,29 +339,29 @@ kubectl rollout undo deployment/microservice-1 -n microservices
 
 ```bash
 # Ver logs detallados
-kubectl logs -n microservices POD_NAME --previous
+microk8s kubectl logs -n microservices POD_NAME --previous
 
 # Ver descripción del pod
-kubectl describe pod POD_NAME -n microservices
+microk8s kubectl describe pod POD_NAME -n microservices
 
 # Ver eventos
-kubectl get events -n microservices --sort-by='.lastTimestamp'
+microk8s kubectl get events -n microservices --sort-by='.lastTimestamp'
 ```
 
 ### "Connection refused"
 
 ```bash
 # Verificar que los servicios están corriendo
-kubectl get pods -n microservices
+microk8s kubectl get pods -n microservices
 
 # Verificar que el servicio existe
-kubectl get svc -n microservices
+microk8s kubectl get svc -n microservices
 
 # Verificar conectividad entre pods
-kubectl exec -it POD_MS2 -n microservices -- ping microservice-1
+microk8s kubectl exec -it POD_MS2 -n microservices -- ping microservice-1
 
 # Ver DNS desde dentro del pod
-kubectl exec -it POD_MS2 -n microservices -- nslookup microservice-1
+microk8s kubectl exec -it POD_MS2 -n microservices -- nslookup microservice-1
 ```
 
 ### "ImagePullBackOff"
@@ -371,7 +371,7 @@ kubectl exec -it POD_MS2 -n microservices -- nslookup microservice-1
 docker pull edygc1988/microservice-1:latest
 
 # Opción 2: Si usas imagen local, cambiar imagePullPolicy
-kubectl patch deployment microservice-1 \
+microk8s kubectl patch deployment microservice-1 \
   -n microservices \
   --type='json' \
   -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value":"Never"}]'
@@ -384,24 +384,24 @@ docker save edygc1988/microservice-1:latest | microk8s ctr image import -
 
 ```bash
 # Ver logs
-kubectl logs -n microservices postgres-0
+microk8s kubectl logs -n microservices postgres-0
 
 # Verificar PVC
-kubectl get pvc -n microservices
+microk8s kubectl get pvc -n microservices
 
 # Si el volumen está corrupto
-kubectl delete pvc postgres-pvc -n microservices
+microk8s kubectl delete pvc postgres-pvc -n microservices
 
 # Los datos se perderán pero se recreará la PVC
 ```
 
 ## 🔐 Acceso a PostgreSQL
 
-### Con kubectl
+### Con microk8s kubectl
 
 ```bash
 # Conectar directamente
-kubectl exec -it -n microservices postgres-0 -- psql -U postgres -d microservices_db
+microk8s kubectl exec -it -n microservices postgres-0 -- psql -U postgres -d microservices_db
 
 # Dentro de psql:
 \dt              # Ver tablas
@@ -413,7 +413,7 @@ SELECT * FROM items;  # Ver items
 
 ```bash
 # Terminal 1
-kubectl port-forward -n microservices svc/postgres 5432:5432
+microk8s kubectl port-forward -n microservices svc/postgres 5432:5432
 
 # Terminal 2
 psql -h localhost -U postgres -d microservices_db
@@ -424,10 +424,10 @@ psql -h localhost -U postgres -d microservices_db
 
 ```bash
 # Eliminar todo el namespace (borra todos los datos)
-kubectl delete namespace microservices
+microk8s kubectl delete namespace microservices
 
 # O solo detener los pods
-kubectl delete -f k8s/k8s.yaml
+microk8s kubectl delete -f k8s/k8s.yaml
 
 # Detener MicroK8s
 microk8s stop
@@ -452,27 +452,27 @@ echo "Verificando MicroK8s..."
 microk8s status --wait-ready
 
 # Crear alias
-alias kubectl='microk8s kubectl'
+alias microk8s kubectl='microk8s microk8s kubectl'
 
 # Aplicar configuración
 echo "Desplegando..."
-kubectl apply -f k8s/k8s.yaml
+microk8s kubectl apply -f k8s/k8s.yaml
 
 # Esperar a que esté listo
 echo "Esperando a que los pods estén listos..."
-kubectl wait --for=condition=ready pod -l app=microservice-1 -n microservices --timeout=5m || true
+microk8s kubectl wait --for=condition=ready pod -l app=microservice-1 -n microservices --timeout=5m || true
 
 # Ver estado
 echo ""
 echo "=== Estado del Despliegue ==="
-kubectl get pods -n microservices
-kubectl get svc -n microservices
+microk8s kubectl get pods -n microservices
+microk8s kubectl get svc -n microservices
 
 # Port-forward en background
 echo ""
 echo "Iniciando port-forward..."
-kubectl port-forward -n microservices svc/microservice-1 5000:5000 &
-kubectl port-forward -n microservices svc/microservice-2 5001:5001 &
+microk8s kubectl port-forward -n microservices svc/microservice-1 5000:5000 &
+microk8s kubectl port-forward -n microservices svc/microservice-2 5001:5001 &
 
 echo ""
 echo "✓ Despliegue completado"
@@ -481,8 +481,8 @@ echo "Servicios disponibles:"
 echo "  - MS1: http://localhost:5000/health"
 echo "  - MS2: http://localhost:5001/health"
 echo ""
-echo "Ver logs: kubectl logs -f -n microservices -l app=microservice-1"
-echo "Ver pods: kubectl get pods -n microservices"
+echo "Ver logs: microk8s kubectl logs -f -n microservices -l app=microservice-1"
+echo "Ver pods: microk8s kubectl get pods -n microservices"
 ```
 
 Ejecutar:
@@ -511,25 +511,25 @@ chmod +x deploy-microk8s.sh
 3. **Crear Alias**
 
    ```bash
-   alias kubectl='microk8s kubectl'
+   alias microk8s kubectl='microk8s microk8s kubectl'
    ```
 
 4. **Desplegar**
 
    ```bash
-   kubectl apply -f k8s/k8s.yaml
+   microk8s kubectl apply -f k8s/k8s.yaml
    ```
 
 5. **Verificar**
 
    ```bash
-   kubectl get pods -n microservices
+   microk8s kubectl get pods -n microservices
    ```
 
 6. **Port-Forward**
 
    ```bash
-   kubectl port-forward -n microservices svc/microservice-1 5000:5000
+   microk8s kubectl port-forward -n microservices svc/microservice-1 5000:5000
    ```
 
 7. **Probar**

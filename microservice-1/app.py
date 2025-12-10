@@ -40,29 +40,37 @@ def get_db_connection():
         logger.error(f"Error conectando a la base de datos: {e}")
         raise
 
-def init_db():
+def init_db(max_retries=10, retry_delay=2):
     """Inicializa la base de datos creando la tabla si no existe"""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Crear tabla items
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS items (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                description TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        logger.info("Base de datos inicializada correctamente")
-    except Exception as e:
-        logger.error(f"Error inicializando la base de datos: {e}")
-        raise
+    import time
+    
+    for attempt in range(max_retries):
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Crear tabla items
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS items (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            logger.info("Base de datos inicializada correctamente")
+            return True
+        except Exception as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"Intento {attempt + 1}/{max_retries} falló. Reintentando en {retry_delay}s: {e}")
+                time.sleep(retry_delay)
+            else:
+                logger.error(f"Error inicializando la base de datos después de {max_retries} intentos: {e}")
+                raise
 
 @app.before_request
 def before_request():
