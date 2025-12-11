@@ -24,7 +24,7 @@ spec:
             - containerPort: {{ .Values.microservice2.service.targetPort }}
               name: http
           env:
-            - name: MICROSERVICE1_URL
+            - name: MICROSERVICE_1_URL
               value: "http://{{ .Values.microservice1.name }}:{{ .Values.microservice1.service.port }}"
           envFrom:
             - configMapRef:
